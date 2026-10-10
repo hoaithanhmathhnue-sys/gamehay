@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
-import { Student } from '../types/marble';
-import { Users, Upload, Plus, Trash2, Check, Sparkles, X, Dices, Image as ImageIcon } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Student, Classroom } from '../types/marble';
+import { 
+  Users, Upload, Plus, Trash2, Check, Sparkles, X, Dices, 
+  Image as ImageIcon, FileSpreadsheet, Edit3, School, AlertCircle 
+} from 'lucide-react';
 import { CUTE_AVATARS, getRandomAvatar, assignRandomAvatarsToStudents, CuteAvatarItem } from '../utils/avatars';
+import { parseStudentExcel } from '../utils/excel';
 
 interface StudentManagerModalProps {
-  students: Student[];
-  onSaveStudents: (newStudents: Student[]) => void;
+  classrooms: Classroom[];
+  activeClassroomId: string;
+  onSelectClassroom: (classId: string) => void;
+  onCreateClassroom: (name: string) => void;
+  onRenameClassroom: (classId: string, newName: string) => void;
+  onDeleteClassroom: (classId: string) => void;
+  onSaveStudentsOfClass: (classId: string, students: Student[]) => void;
   onClose: () => void;
 }
 
@@ -16,17 +25,87 @@ const COLOR_PALETTE = [
 ];
 
 export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
-  students,
-  onSaveStudents,
+  classrooms,
+  activeClassroomId,
+  onSelectClassroom,
+  onCreateClassroom,
+  onRenameClassroom,
+  onDeleteClassroom,
+  onSaveStudentsOfClass,
   onClose
 }) => {
-  const [list, setList] = useState<Student[]>(students);
+  // Tìm lớp đang hoạt động
+  const currentClass = classrooms.find(c => c.id === activeClassroomId) || classrooms[0] || {
+    id: 'default',
+    name: 'Lớp 12A1',
+    students: []
+  };
+
+  const [list, setList] = useState<Student[]>(currentClass.students || []);
   const [bulkText, setBulkText] = useState('');
   const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [newName, setNewName] = useState('');
   
+  // State quản lý lớp
+  const [showNewClassInput, setShowNewClassInput] = useState(false);
+  const [newClassName, setNewClassName] = useState('');
+  const [isEditingClassName, setIsEditingClassName] = useState(false);
+  const [editingNameValue, setEditingNameValue] = useState(currentClass.name);
+
+  // Thông báo Toast thành công hoặc lỗi
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
   // State chọn avatar cho 1 học sinh cụ thể
   const [pickingStudentId, setPickingStudentId] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  // Chuyển sang lớp khác
+  const handleSwitchClass = (classId: string) => {
+    // Lưu lớp hiện tại trước khi chuyển
+    onSaveStudentsOfClass(currentClass.id, list);
+    
+    onSelectClassroom(classId);
+    const targetClass = classrooms.find(c => c.id === classId);
+    if (targetClass) {
+      setList(targetClass.students || []);
+      setEditingNameValue(targetClass.name);
+      setIsEditingClassName(false);
+    }
+  };
+
+  // Tạo lớp mới
+  const handleCreateNewClass = () => {
+    if (!newClassName.trim()) return;
+    onCreateClassroom(newClassName.trim());
+    setNewClassName('');
+    setShowNewClassInput(false);
+    showToast(`Đã tạo thành công lớp "${newClassName.trim()}"!`);
+  };
+
+  // Đổi tên lớp
+  const handleSaveClassName = () => {
+    if (!editingNameValue.trim()) return;
+    onRenameClassroom(currentClass.id, editingNameValue.trim());
+    setIsEditingClassName(false);
+    showToast(`Đã đổi tên lớp thành "${editingNameValue.trim()}"!`);
+  };
+
+  // Xóa lớp
+  const handleDeleteCurrentClass = () => {
+    if (classrooms.length <= 1) {
+      showToast('Cần giữ lại ít nhất 1 lớp học trong danh sách!', 'error');
+      return;
+    }
+    if (window.confirm(`Bạn có chắc chắn muốn xóa lớp "${currentClass.name}" cùng toàn bộ học sinh?`)) {
+      onDeleteClassroom(currentClass.id);
+      showToast(`Đã xóa lớp "${currentClass.name}"!`);
+    }
+  };
 
   // Thêm 1 học sinh mới (tự động gán ngẫu nhiên 1 trong 55 icon)
   const handleAddSingle = () => {
@@ -56,6 +135,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
   const handleRandomizeAllAvatars = () => {
     const updated = assignRandomAvatarsToStudents(list);
     setList(updated);
+    showToast('Đã xáo trộn và gán ngẫu nhiên 55 icon cho cả lớp!');
   };
 
   // Chọn 1 avatar cụ thể từ danh sách 55 icon cho học sinh đang chọn
@@ -93,9 +173,37 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
       };
       reader.readAsDataURL(file);
     });
+    showToast(`Đã nạp ${Math.min(files.length, list.length)} ảnh đại diện từ máy tính!`);
   };
 
-  // Phân tích văn bản paste từ Excel -> Tự động gán ngẫu nhiên 55 avatar ngộ nghĩnh
+  // TẢI FILE EXCEL (.xlsx / .xls / .csv)
+  const handleExcelUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const studentNames = await parseStudentExcel(file);
+      
+      const newStudents: Student[] = studentNames.map((name, idx) => ({
+        id: `s_excel_${Date.now()}_${idx}`,
+        name,
+        number: idx + 1,
+        color: COLOR_PALETTE[idx % COLOR_PALETTE.length]
+      }));
+
+      // Gán ngẫu nhiên 55 avatar icon
+      const withAvatars = assignRandomAvatarsToStudents(newStudents);
+      setList(withAvatars);
+      
+      showToast(`🎉 Đã nạp thành công ${withAvatars.length} học sinh từ file "${file.name}" vào ${currentClass.name}!`);
+    } catch (err) {
+      showToast((err as Error).message, 'error');
+    } finally {
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  // Phân tích văn bản paste từ Excel
   const handleApplyBulkText = () => {
     const lines = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
@@ -107,12 +215,11 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
       color: COLOR_PALETTE[idx % COLOR_PALETTE.length]
     }));
 
-    // Gán ngẫu nhiên không trùng lặp từ kho 55 avatar
     const withAvatars = assignRandomAvatarsToStudents(newStudents);
-
     setList(withAvatars);
     setShowBulkPaste(false);
     setBulkText('');
+    showToast(`Đã nạp ${withAvatars.length} học sinh từ nội dung dán!`);
   };
 
   // Nạp mẫu lớp 30 em kèm 30 icon ngẫu nhiên từ kho 55 avatar
@@ -133,10 +240,11 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
     }));
     const withRandomAvatars = assignRandomAvatarsToStudents(generated);
     setList(withRandomAvatars);
+    showToast('Đã nạp danh sách mẫu 30 học sinh kèm icon ngộ nghĩnh!');
   };
 
   const handleSaveAndClose = () => {
-    onSaveStudents(list);
+    onSaveStudentsOfClass(currentClass.id, list);
     onClose();
   };
 
@@ -146,49 +254,201 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
         {/* Nút đóng */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60 hover:bg-slate-800 transition-colors"
+          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-white rounded-full bg-slate-800/60 hover:bg-slate-800 transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
-        {/* Tiêu đề Modal */}
-        <div className="flex items-center justify-between pb-4 border-b border-slate-800 flex-shrink-0">
+        {/* Thông báo Toast */}
+        {notification && (
+          <div className={`absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-xl text-xs md:text-sm font-bold flex items-center gap-2 shadow-xl animate-bounce ${
+            notification.type === 'success' 
+              ? 'bg-emerald-600 text-white shadow-emerald-600/30' 
+              : 'bg-rose-600 text-white shadow-rose-600/30'
+          }`}>
+            {notification.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
+            <span>{notification.message}</span>
+          </div>
+        )}
+
+        {/* Header Modal */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-slate-800 flex-shrink-0 gap-2">
           <div className="flex items-center gap-2.5">
             <span className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-400">
               <Users className="w-5 h-5" />
             </span>
             <div>
               <h2 className="text-lg md:text-xl font-black text-white flex items-center gap-2">
-                <span>Quản Lý Danh Sách Học Sinh ({list.length})</span>
+                <span>Quản Lý Học Sinh & Lớp Học</span>
                 <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold border border-amber-500/30">
-                  Kho 55 Icon Ngộ Nghĩnh
+                  Kho 55 Icon
                 </span>
               </h2>
               <p className="text-xs text-slate-400">
-                Tự động gán ngẫu nhiên các icon động vật, siêu nhân, nhân vật đáng yêu khi tải danh sách
+                Thêm nhiều lớp giảng dạy, tải danh sách từ file Excel (.xlsx) và gán icon ngộ nghĩnh
               </p>
             </div>
           </div>
         </div>
 
-        {/* Thanh công cụ nhanh */}
-        <div className="flex flex-wrap items-center gap-2 py-3 border-b border-slate-800/80 flex-shrink-0 text-xs">
-          {/* Nút Gán ngẫu nhiên lại toàn bộ 55 icon */}
-          <button
-            onClick={handleRandomizeAllAvatars}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black shadow-md shadow-amber-500/20 active:scale-95 transition-all"
-            title="Xáo trộn và gán lại ngẫu nhiên 55 icon cho cả lớp"
-          >
-            <Dices className="w-4 h-4" />
-            <span>🎲 Đổi Ngẫu Nhiên Icon Cho Cả Lớp</span>
-          </button>
+        {/* ======================================================== */}
+        {/* THANH TAB DANH SÁCH CÁC LỚP HỌC (CLASSROOM TABS) */}
+        {/* ======================================================== */}
+        <div className="py-2.5 border-b border-slate-800 flex-shrink-0 flex items-center justify-between gap-2 overflow-x-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
+              <School className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Lớp:</span>
+            </span>
 
-          {/* Dán từ Excel */}
+            {/* Các lớp học hiện có */}
+            {classrooms.map(c => {
+              const isActive = c.id === currentClass.id;
+              const count = isActive ? list.length : (c.students?.length || 0);
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => handleSwitchClass(c.id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                    isActive
+                      ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-md shadow-indigo-600/30 ring-2 ring-indigo-400/40'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60'
+                  }`}
+                >
+                  <span>{c.name}</span>
+                  <span className={`px-1.5 py-0.2 rounded-full text-[10px] ${
+                    isActive ? 'bg-indigo-950/80 text-indigo-200' : 'bg-slate-900 text-slate-400'
+                  }`}>
+                    {count}
+                  </span>
+                </button>
+              );
+            })}
+
+            {/* Nút thêm lớp mới */}
+            {!showNewClassInput ? (
+              <button
+                onClick={() => setShowNewClassInput(true)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-slate-800/60 hover:bg-slate-700 border border-dashed border-slate-600 text-xs font-semibold text-slate-300 hover:text-white"
+                title="Tạo thêm lớp học mới"
+              >
+                <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Thêm Lớp</span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-indigo-500/50 animate-fade-in">
+                <input
+                  type="text"
+                  value={newClassName}
+                  onChange={(e) => setNewClassName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleCreateNewClass()}
+                  placeholder="Tên lớp (ví dụ: 11B2)..."
+                  autoFocus
+                  className="px-2 py-1 bg-transparent text-xs text-white focus:outline-none w-32"
+                />
+                <button
+                  onClick={handleCreateNewClass}
+                  className="p-1 rounded-lg bg-emerald-600 text-white hover:bg-emerald-500"
+                  title="Tạo lớp"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => setShowNewClassInput(false)}
+                  className="p-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white"
+                  title="Hủy"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Công cụ sửa / xóa lớp đang chọn */}
+          <div className="flex items-center gap-1.5 flex-shrink-0">
+            {isEditingClassName ? (
+              <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-amber-500/50">
+                <input
+                  type="text"
+                  value={editingNameValue}
+                  onChange={(e) => setEditingNameValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleSaveClassName()}
+                  autoFocus
+                  className="px-2 py-0.5 bg-transparent text-xs text-white focus:outline-none w-28 font-bold"
+                />
+                <button
+                  onClick={handleSaveClassName}
+                  className="p-1 rounded bg-amber-600 text-white"
+                  title="Lưu tên lớp"
+                >
+                  <Check className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={() => setIsEditingClassName(false)}
+                  className="p-1 rounded bg-slate-800 text-slate-400"
+                  title="Hủy"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => {
+                  setEditingNameValue(currentClass.name);
+                  setIsEditingClassName(true);
+                }}
+                className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-xs flex items-center gap-1"
+                title="Đổi tên lớp này"
+              >
+                <Edit3 className="w-3 h-3 text-amber-400" />
+                <span className="hidden sm:inline">Đổi tên</span>
+              </button>
+            )}
+
+            <button
+              onClick={handleDeleteCurrentClass}
+              className="p-1.5 rounded-lg bg-slate-800/80 hover:bg-red-500/20 text-slate-400 hover:text-red-400 text-xs flex items-center gap-1"
+              title="Xóa lớp này"
+            >
+              <Trash2 className="w-3 h-3" />
+              <span className="hidden sm:inline">Xóa lớp</span>
+            </button>
+          </div>
+        </div>
+
+        {/* ======================================================== */}
+        {/* THANH CÔNG CỤ: EXCEL, DÁN, NGẪU NHIÊN, TẢI ẢNH */}
+        {/* ======================================================== */}
+        <div className="flex flex-wrap items-center gap-2 py-3 border-b border-slate-800/80 flex-shrink-0 text-xs">
+          {/* NÚT TẢI FILE EXCEL (.xlsx / .xls) */}
+          <label className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-extrabold shadow-md shadow-emerald-600/25 active:scale-95 transition-all cursor-pointer">
+            <FileSpreadsheet className="w-4 h-4 text-emerald-200" />
+            <span>📁 Tải Lên File Excel (.xlsx / .xls)</span>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              className="hidden"
+              onChange={handleExcelUpload}
+            />
+          </label>
+
+          {/* Dán từ Excel dạng văn bản */}
           <button
             onClick={() => setShowBulkPaste(!showBulkPaste)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 font-bold"
           >
-            <span>📋 Dán từ Excel</span>
+            <span>📋 Dán Chữ từ Excel</span>
+          </button>
+
+          {/* Nút Gán ngẫu nhiên lại toàn bộ 55 icon */}
+          <button
+            onClick={handleRandomizeAllAvatars}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-200 font-bold active:scale-95 transition-all"
+            title="Xáo trộn và gán lại ngẫu nhiên 55 icon cho cả lớp"
+          >
+            <Dices className="w-3.5 h-3.5 text-amber-400" />
+            <span>🎲 Đổi Ngẫu Nhiên Icon</span>
           </button>
 
           {/* Mẫu lớp 30 em */}
@@ -203,7 +463,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
           {/* Tải ảnh máy tính nếu muốn */}
           <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 font-medium cursor-pointer ml-auto">
             <Upload className="w-3.5 h-3.5 text-slate-400" />
-            <span>Tải Ảnh Từ Máy</span>
+            <span>Tải Ảnh Hàng Loạt</span>
             <input
               type="file"
               multiple
@@ -218,7 +478,7 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
         {showBulkPaste && (
           <div className="p-3 bg-slate-950 rounded-2xl border border-indigo-500/40 my-2 animate-fade-in flex-shrink-0">
             <p className="text-xs text-slate-300 mb-1.5 font-medium">
-              Dán danh sách tên học sinh (mỗi học sinh 1 dòng — hệ thống sẽ tự động gán ngẫu nhiên các icon ngộ nghĩnh):
+              Dán danh sách tên học sinh (mỗi học sinh 1 dòng — tự động gán ngẫu nhiên 55 icon ngộ nghĩnh):
             </p>
             <textarea
               rows={4}
@@ -238,20 +498,20 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
                 onClick={handleApplyBulkText}
                 className="px-4 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md shadow-indigo-600/30"
               >
-                Áp Dụng Danh Sách & Gán Icon
+                Áp Dụng Danh Sách
               </button>
             </div>
           </div>
         )}
 
         {/* Thêm 1 học sinh mới */}
-        <div className="flex gap-2 py-3 flex-shrink-0">
+        <div className="flex gap-2 py-2.5 flex-shrink-0">
           <input
             type="text"
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleAddSingle()}
-            placeholder="Nhập tên học sinh mới (tự động gán ngẫu nhiên 1 trong 55 icon)..."
+            placeholder={`Thêm học sinh mới vào ${currentClass.name} (tự động gán 1 trong 55 icon)...`}
             className="flex-1 px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-slate-100 text-xs md:text-sm focus:ring-2 focus:ring-indigo-500 focus:outline-none"
           />
           <button
@@ -264,12 +524,14 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
         </div>
 
         {/* Danh sách học sinh dạng lưới cuộn */}
-        <div className="flex-1 overflow-y-auto pr-1 space-y-2 my-2 min-h-[260px]">
+        <div className="flex-1 overflow-y-auto pr-1 space-y-2 my-2 min-h-[240px]">
           {list.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16 text-slate-500">
-              <Users className="w-12 h-12 mb-2 opacity-40" />
-              <p className="text-sm font-semibold">Chưa có học sinh nào trong danh sách.</p>
-              <p className="text-xs text-slate-600">Bấm "Mẫu Lớp 30 Em" hoặc "Dán từ Excel" để tự động gán icon ngộ nghĩnh.</p>
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-2xl">
+              <FileSpreadsheet className="w-12 h-12 mb-2 text-emerald-500 opacity-60" />
+              <p className="text-sm font-bold text-slate-300">Chưa có học sinh nào trong {currentClass.name}</p>
+              <p className="text-xs text-slate-500 mt-1 max-w-sm text-center">
+                Bấm nút <strong>"📁 Tải Lên File Excel"</strong> để nạp danh sách lớp hoặc bấm <strong>"Mẫu Lớp 30 Em"</strong> để thử nghiệm ngay.
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
@@ -337,12 +599,16 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
         </div>
 
         {/* Footer Buttons */}
-        <div className="flex items-center justify-between pt-4 border-t border-slate-800 flex-shrink-0">
+        <div className="flex items-center justify-between pt-3 border-t border-slate-800 flex-shrink-0">
           <button
-            onClick={() => setList([])}
+            onClick={() => {
+              if (window.confirm(`Xóa toàn bộ học sinh của ${currentClass.name}?`)) {
+                setList([]);
+              }
+            }}
             className="text-xs text-red-400 hover:text-red-300 font-semibold px-2 py-1"
           >
-            Xóa toàn bộ
+            Xóa danh sách lớp này
           </button>
 
           <div className="flex items-center gap-2">
@@ -350,14 +616,14 @@ export const StudentManagerModal: React.FC<StudentManagerModalProps> = ({
               onClick={onClose}
               className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs md:text-sm font-semibold transition-colors"
             >
-              Hủy
+              Đóng
             </button>
             <button
               onClick={handleSaveAndClose}
               className="flex items-center gap-1.5 px-6 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs md:text-sm font-extrabold shadow-lg shadow-indigo-600/30 transition-all active:scale-95"
             >
               <Check className="w-4 h-4" />
-              <span>Lưu Danh Sách</span>
+              <span>Lưu Lớp & Vào Đua Ngay</span>
             </button>
           </div>
         </div>

@@ -1,11 +1,14 @@
-import React from 'react';
-import { GameMode } from '../types/marble';
-import { Users, HelpCircle, Volume2, VolumeX, Maximize2, Sparkles, MapPin } from 'lucide-react';
+import React, { useState } from 'react';
+import { GameMode, Classroom } from '../types/marble';
+import { Users, HelpCircle, Volume2, VolumeX, Maximize2, Sparkles, MapPin, School, ChevronDown, Plus } from 'lucide-react';
 import { sound } from '../utils/audio';
 
 interface HeaderProps {
   currentMode: GameMode;
   onSelectMode: (mode: GameMode) => void;
+  classrooms: Classroom[];
+  activeClassroomId: string;
+  onSelectClassroom: (id: string) => void;
   onOpenStudents: () => void;
   onOpenQuizBank: () => void;
   onOpenTrackSelect: () => void;
@@ -19,6 +22,9 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({
   currentMode,
   onSelectMode,
+  classrooms,
+  activeClassroomId,
+  onSelectClassroom,
   onOpenStudents,
   onOpenQuizBank,
   onOpenTrackSelect,
@@ -28,6 +34,8 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleMute,
   currentTrackName
 }) => {
+  const [showClassDropdown, setShowClassDropdown] = useState(false);
+  const activeClass = classrooms.find(c => c.id === activeClassroomId) || classrooms[0];
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().catch(() => {});
@@ -60,6 +68,16 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick controls on mobile */}
           <div className="flex items-center gap-1.5 md:hidden">
+            {/* Chọn Lớp mobile */}
+            <button
+              onClick={onOpenStudents}
+              className="p-1.5 rounded-lg bg-indigo-950 text-indigo-300 hover:text-white flex items-center gap-1 text-xs border border-indigo-500/40 font-bold"
+              title="Chuyển lớp học"
+            >
+              <School className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="max-w-[70px] truncate">{activeClass?.name || 'Lớp'}</span>
+            </button>
+
             <button
               onClick={onOpenAuthor}
               className="p-1.5 rounded-lg bg-slate-800 text-indigo-300 hover:text-white flex items-center gap-1 text-xs border border-indigo-500/30"
@@ -138,11 +156,68 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="max-w-[100px] truncate">{currentTrackName}</span>
           </button>
 
+          {/* Chọn Lớp Học Nhanh (Dropdown) */}
+          <div className="relative">
+            <button
+              onClick={() => setShowClassDropdown(!showClassDropdown)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-950/90 hover:bg-indigo-900 border border-indigo-500/50 text-xs font-extrabold text-indigo-200 transition-all shadow-md shadow-indigo-950/50"
+              title="Nhấp để chuyển nhanh giữa các lớp giảng dạy"
+            >
+              <School className="w-3.5 h-3.5 text-indigo-400" />
+              <span className="max-w-[110px] truncate">{activeClass?.name || 'Chọn Lớp'}</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-indigo-500/30 text-indigo-200 font-bold">
+                {activeClass?.students?.length || 0} HS
+              </span>
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+
+            {showClassDropdown && (
+              <div className="absolute top-full left-0 mt-1.5 w-52 bg-slate-900 border border-slate-700/90 rounded-2xl shadow-2xl z-50 py-1.5 overflow-hidden animate-fade-in backdrop-blur-md">
+                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-800 flex items-center justify-between">
+                  <span>Chọn lớp đua</span>
+                  <span className="text-indigo-400">{classrooms.length} lớp</span>
+                </div>
+                <div className="max-h-56 overflow-y-auto py-1">
+                  {classrooms.map(c => {
+                    const isSelected = c.id === activeClassroomId;
+                    return (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          onSelectClassroom(c.id);
+                          setShowClassDropdown(false);
+                        }}
+                        className={`w-full text-left px-3 py-2 text-xs font-bold flex items-center justify-between hover:bg-indigo-950/60 transition-colors ${
+                          isSelected ? 'text-indigo-300 bg-indigo-500/15 border-l-2 border-indigo-400' : 'text-slate-200'
+                        }`}
+                      >
+                        <span className="truncate">{c.name}</span>
+                        <span className="text-[10px] text-slate-400 font-normal">
+                          {c.students?.length || 0} HS
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowClassDropdown(false);
+                    onOpenStudents();
+                  }}
+                  className="w-full text-left px-3 py-2 text-xs font-bold text-indigo-300 hover:text-white hover:bg-indigo-900/40 border-t border-slate-800 flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Quản lý & Thêm lớp mới...</span>
+                </button>
+              </div>
+            )}
+          </div>
+
           {/* Quản lý danh sách học sinh */}
           <button
             onClick={onOpenStudents}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/60 text-xs font-medium text-slate-200 transition-colors shadow-sm"
-            title="Quản lý học sinh và ảnh avatar"
+            title="Quản lý học sinh, lớp học và ảnh avatar"
           >
             <Users className="w-3.5 h-3.5 text-indigo-400" />
             <span>Học Sinh</span>

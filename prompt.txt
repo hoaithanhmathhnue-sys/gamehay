@@ -1,0 +1,121 @@
+# PROMPT HOÀN CHỈNH TẠO WEBAPP "ĐUA BI LỚP HỌC PRO" (MARBLE RACE CLASSROOM)
+# Hãy sao chép toàn bộ nội dung dưới đây và gửi cho AI (như Antigravity / Claude Code / ChatGPT / Cursor) để tạo ra ứng dụng hoàn chỉnh:
+
+---
+
+Hãy xây dựng một WebApp Game hoàn chỉnh có tên "ĐUA BI LỚP HỌC PRO" (Marble Race Classroom) dành cho giáo viên và học sinh, hoạt động mượt mà trên trình duyệt, có thể đẩy lên GitHub và triển khai (deploy) ngay lập tức lên Vercel mà không gặp bất kỳ lỗi nào.
+
+### 1. CÔNG NGHỆ & KIẾN TRÚC KỸ THUẬT
+- **Framework & Ngôn ngữ:** React 18, TypeScript, Vite.
+- **Styling:** Tailwind CSS, Lucide React (bộ icon hiện đại), phong cách thiết kế kính mờ (Glassmorphism), Dark Mode chủ đạo (Slate-950, Indigo, Amber, Emerald, Rose) với hiệu ứng ánh sáng Neon cao cấp, hiện đại và tràn đầy năng lượng cho lớp học.
+- **Đồ họa & Vật lý:** HTML5 Canvas 2D Physics Engine tự viết (không dùng thư viện nặng như Matter.js hay Box2D để đảm bảo siêu nhẹ, mượt mà 60fps và dễ tùy biến).
+- **Âm thanh:** Web Audio API thuần (Procedural Audio Synthesizer) tạo âm thanh trực tiếp bằng mã lệnh, không phụ thuộc file âm thanh bên ngoài: tiếng bi va chạm côm cốp, còi trọng tài xuất phát, đếm ngược beep, đệm nhún nảy boing, bứt tốc Nitro, chuông về đích, pháo hoa ăn mừng và âm báo đúng/sai.
+- **Triển khai:** Tích hợp file `vercel.json` định tuyến SPA rewrites để chạy hoàn hảo trên Vercel.
+
+---
+
+### 2. BA CHẾ ĐỘ CHƠI CỐT LÕI
+1. 🎯 **Chế Độ 1: Đua Cho Vui (Gọi Tên Ngẫu Nhiên)**
+   - Mỗi viên bi đại diện cho một học sinh với tên, số thứ tự và màu sắc ngẫu nhiên rực rỡ.
+   - Dùng để bốc thăm ngẫu nhiên, chia nhóm, phân công nhật ký hoặc khởi động tiết học sôi động.
+2. 📸 **Chế Độ 2: Đua Bằng Ảnh Đại Diện (Photo Avatars & 55 Icon Ngộ Nghĩnh)**
+   - Viên bi hiển thị khuôn mặt/avatar của học sinh, tự động xoay theo quán tính lăn của viên bi.
+   - Tích hợp sẵn **kho 55 icon vector SVG ngộ nghĩnh offline** (động vật đáng yêu: mèo, cún, sư tử, gấu trúc, cáo, cánh cụt, vẹt...; siêu anh hùng, phi hành gia, ninja, robot, biểu cảm ngộ nghĩnh).
+   - Tự động gán ngẫu nhiên 55 icon này vào học sinh khi tải danh sách, có nút "🎲 Đổi Ngẫu Nhiên Icon Cho Cả Lớp" và cho phép đổi icon thủ công cho từng em hoặc tải ảnh từ máy tính.
+3. 📝 **Chế Độ 3: Đua Kiểm Tra Bài Cũ (Quiz Mode)**
+   - Cuộc đua xác định học sinh về đích đầu tiên (hoặc top người thắng).
+   - Học sinh về đích sẽ mở cửa sổ câu hỏi trắc nghiệm kiểm tra bài cũ với đồng hồ đếm ngược, tính điểm, âm thanh chúc mừng và hiển thị lời giải thích chi tiết.
+
+---
+
+### 3. VẬT LÝ ĐƯỜNG ĐUA 2D ĐA DẠNG & THÔNG MINH
+- **Độ dài đường đua:** 1800px, chiều rộng 800px.
+- **Hệ thống va chạm đàn hồi (Elastic Collision):**
+  - **Va chạm Bi - Bi:** Bắn nảy nhau chân thực theo khối lượng và góc va chạm, kèm tiếng va chạm bi thủy tinh lách cách.
+  - **Va chạm Bi - Tường:** Giới hạn 2 bên thành đường đua có dải sáng phản quang.
+- **Hệ thống chướng ngại vật phong phú (Obstacles):**
+  - **Chốt đinh Plinko (Pegs):** Hàng đinh zíc zắc trên cao và ma trận 7 chốt đinh hình kim cương phát sáng ở đoạn áp chót khiến bi đổi hướng liên tục.
+  - **Máng trượt dốc (Ramps):** Các thanh máng nghiêng bo góc có lực trượt gia tốc, thanh chắn phân luồng so le trái - phải.
+  - **Cánh quạt xoay (Spinners):** Các bộ cánh quạt 4 cánh xoay liên tục tạo lực quạt tiếp tuyến mạnh, hất văng các viên bi. Bố trí 2 quạt lớn quay ngược chiều và 1 quạt mini trung tâm quay tốc độ cao.
+  - **Đệm nảy lò xo Neon (Bouncers):** Các đệm tròn phát sáng neon có lực bật cực mạnh (hất ngược viên bi kèm âm thanh "boing"), đặt ở giữa 2 cánh quạt, áp 2 bên thành tường và trước cửa phễu gom bi.
+  - **Bệ tăng tốc Nitro đôi (Boosters):** 2 làn tăng tốc có mũi tên phát sáng `▼ ▼ ▼`, khi bi chạm vào sẽ được đẩy vọt xuống với gia tốc cực lớn.
+  - **Phễu gom bi hẹp (Funnel):** 2 máng dốc lớn thu hẹp dần luồng bi vào khe hẹp về đích.
+  - **Chốt chẻ đôi dòng bi (Splitter Peg):** Đặt ngay tại cổ chai của phễu đích chống tắc nghẽn, tạo pha tranh chấp lách qua trái/phải nghẹt thở từng milimet trước vạch đích.
+- **Có sẵn 3 bản đồ đường đua độc đáo:**
+  1. *Trường Đua Cổ Điển:* Máng trượt dốc, ma trận Plinko kim cương, quạt xoay và phễu hẹp.
+  2. *Vòng Xoáy Gia Tốc:* Ma trận quạt xoay, đệm nhún bật cao và bệ phóng tốc độ.
+  3. *Thác Bi Thử Thách:* Đường dốc bậc thang cao tốc, phân 3 làn bất ngờ.
+
+---
+
+### 4. HỆ THỐNG CAMERA BÁM ĐUỔI (LERP CAMERA TRACKING) & MINI-MAP
+- **Camera Tracking Mượt Mà:** Sử dụng `useRef` lưu toạ độ camera độc lập với chu kỳ re-render của React và thuật toán nội suy Lerp (`lerp factor 0.08`), giữ cho viên bi dẫn đầu luôn nằm ở khoảng 35% - 40% màn hình, tự động lướt êm ái từ vạch xuất phát đến vạch đích mà không bao giờ bị khựng.
+- **Thanh Mini-Map Toàn Cảnh (Góc Trái Màn Hình):** Hiển thị bản đồ thu nhỏ 1800px với chấm màu đại diện cho tất cả học sinh và khung phát sáng thể hiện tầm nhìn hiện tại của camera.
+- **Thanh Điều Khiển Camera:** Nút bấm linh hoạt chọn 🎥 Bám theo bi dẫn đầu, 🏁 Đón ở vạch đích, hoặc 🔝 Xem vạch xuất phát.
+
+---
+
+### 5. TÍCH HỢP TRÍ TUỆ NHÂN TẠO AI GEMINI TẠO CÂU HỎI
+- Tuân thủ kiểm tra regex API Key Google AI: `/^(?:AIzaSy|AQ)\S{8,}$/`.
+- Hỗ trợ cơ chế Fallback tuần tự giữa các model hiện đại nhất:
+  - `gemini-3.1-flash-lite` -> `gemini-3.5-flash` -> `gemini-2.5-flash-lite`.
+- Cho phép giáo viên nhập chủ đề (ví dụ: *Lịch sử lớp 12, Toán hình 10, Tiếng Anh Unit 5, Đố vui khởi động*), số lượng câu hỏi, mức độ khó (Dễ, Trung bình, Vận dụng cao).
+- Tự động sinh ra bộ câu hỏi 4 lựa chọn (A, B, C, D) chuẩn format JSON kèm đáp án đúng và lời giải thích chi tiết.
+- Quản lý Ngân hàng câu hỏi: Thêm, sửa, xóa, tìm kiếm, xuất file JSON và nhập file JSON tiện lợi.
+
+---
+
+### 6. QUẢN LÝ ĐA LỚP HỌC & NẠP DANH SÁCH TỪ FILE EXCEL
+- **Quản lý đa lớp giảng dạy (Multi-Classrooms):**
+  - Giáo viên có thể dạy nhiều lớp (ví dụ: *12A1, 12A2, 11B2, 10A3...*).
+  - Cho phép thêm lớp mới, đổi tên lớp, xóa lớp và quản lý danh sách học sinh riêng biệt cho từng lớp.
+  - Tích hợp **Dropdown Chọn Lớp Nhanh ngay trên thanh Header** (cả Desktop & Mobile): Chuyển đổi lớp đua chỉ với 1 click, hệ thống tự động cập nhật ngay danh sách học sinh và viên bi của lớp đó lên đường đua.
+- **Tải lên trực tiếp file Excel (.xlsx / .xls / .csv):**
+  - Tích hợp thư viện SheetJS (`xlsx`) đọc file Excel ngay trên trình duyệt mà không cần máy chủ.
+  - Thuật toán thông minh tự động quét nhận diện cột "Họ và tên", "Họ tên", "Học sinh" hoặc ghép từ 2 cột "Họ lót" + "Tên".
+  - Tự động đánh số thứ tự, gán màu sắc và **tự động gán ngẫu nhiên kho 55 avatar icon ngộ nghĩnh** cho từng em ngay sau khi nạp file.
+- **Dán văn bản từ Excel / Word:** Hỗ trợ dán trực tiếp danh sách tên học sinh (mỗi em một dòng).
+- **Tải ảnh cá nhân học sinh:** Cho phép tải ảnh từ máy tính (nén và lưu trữ Base64 trong `localStorage`) hoặc chọn tùy ý từng icon trong 55 avatar.
+- **Tùy chọn số lượng người chiến thắng:** Top 1, Top 3 hoặc Top 5.
+
+---
+
+### 7. BẢNG VINH QUANG PODIUM & PHÁO HOA ĂN MỪNG
+- Khi đủ số lượng bi về đích, tự động hiển thị Bảng Vinh Danh Podium (Top 1 Hạng Nhất Cúp Vàng, Top 2 Hạng Nhì Huy Chương Bạc, Top 3 Hạng Ba Huy Chương Đồng).
+- Hiệu ứng pháo hoa giấy rơi (Confetti) rực rỡ toàn màn hình.
+- Nút "Kiểm Tra Bài Cũ Người Thắng" để chuyển ngay sang chế độ Quiz trả lời câu hỏi, hoặc nút "Đua Lại" với 1 chạm.
+
+---
+
+### 8. MỤC TÁC GIẢ & BỘ ĐẾM TRUY CẬP
+- **Mục Tác Giả Ứng Dụng:**
+  - Nút "👤 Tác Giả" trên thanh công cụ Header (desktop và mobile) và badge chân trang.
+  - Cửa sổ Modal hiển thị trang trọng:
+    + Giáo viên phát triển: **Trần Thị Kim Thoa**
+    + Đơn vị công tác: **Trường THPT Hoàng Diệu**
+    + Địa chỉ: **Số 1 Mạc Đĩnh Chi, phường Phú Lợi, thành phố Cần Thơ**
+    + Logo trường (`/logo.jpg`) và chân dung cô giáo (`/avatar.jpg`) trong thư mục `public/`.
+    + Sứ mệnh ứng dụng: Chuyển đổi số giáo dục, tạo không khí học tập tích cực, sáng tạo.
+- **Bộ Đếm Lượt Truy Cập (Visit Counter):**
+  - Tích hợp API `counterapi.dev` (namespace `duabi-edugenvn`) hiển thị số lượt truy cập thực tế ở chân trang theo phong cách giáo dục.
+
+---
+
+### 9. PHÍM TẮT & TIỆN ÍCH DÀNH CHO GIÁO VIÊN
+- `Space`: Bắt đầu đua / Tạm dừng / Tiếp tục.
+- `B`: Kích hoạt tăng tốc Nitro toàn bộ các viên bi (khi bi bị kẹt hoặc muốn cuộc đua bùng nổ).
+- `R`: Đặt lại cuộc đua về vạch xuất phát.
+- Nút bật/tắt toàn màn hình (Fullscreen) để trình chiếu trên máy chiếu hoặc bảng tương tác thông minh.
+- Nút bật/tắt âm thanh nhanh.
+
+---
+
+### 10. HƯỚNG DẪN BUILD & DEPLOY
+- Đảm bảo lệnh `npm run build` chạy `tsc && vite build` tạo ra thư mục `dist/` thành công 100% không có cảnh báo hay lỗi kiểu dữ liệu.
+- Định dạng file cấu hình `vercel.json`:
+  ```json
+  {
+    "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  }
+  ```
+- Ứng dụng sẵn sàng đưa lên GitHub repo và liên kết tự động triển khai trên Vercel.

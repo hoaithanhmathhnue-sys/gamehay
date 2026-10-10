@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GameMode, Marble, Student, TrackConfig, RaceState } from './types/marble';
+import { GameMode, Marble, Student, TrackConfig, RaceState, Classroom } from './types/marble';
 import { QuizQuestion } from './types/quiz';
 import { DEFAULT_TRACKS, updatePhysics } from './utils/physics';
 import { sound } from './utils/audio';
@@ -16,16 +16,24 @@ import { VisitCounter } from './components/VisitCounter';
 import { assignRandomAvatarsToStudents } from './utils/avatars';
 import { AuthorModal } from './components/AuthorModal';
 
-const STORAGE_STUDENTS = 'duabi_classroom_students_v2';
+const STORAGE_CLASSROOMS = 'duabi_classroom_classes_v4';
+const STORAGE_ACTIVE_CLASS_ID = 'duabi_classroom_active_class_id_v4';
 const STORAGE_QUESTIONS = 'duabi_classroom_questions';
 
-const DEFAULT_NAMES = [
+const DEFAULT_NAMES_12A1 = [
   'Nguyễn An', 'Trần Bình', 'Lê Cường', 'Phạm Dũng', 'Hoàng Em',
   'Đặng Giang', 'Bùi Hải', 'Vũ Hùng', 'Đỗ Khánh', 'Hồ Linh',
   'Ngô Minh', 'Dương Nam', 'Lý Oanh', 'Mai Phúc', 'Đào Quân',
   'Vương Sơn', 'Tạ Tuấn', 'Trịnh Uy', 'Lương Vy', 'Hà Xuân',
   'Chu Yến', 'Cao Bảo', 'Đoàn Duy', 'Trương Gia', 'Đinh Khang',
   'Lâm Long', 'Thái Nghĩa', 'Phan Phong', 'Võ Quang', 'Thạch Sang'
+];
+
+const DEFAULT_NAMES_11B2 = [
+  'Bạch Tuyết', 'Hồng Sơn', 'Ngọc Mai', 'Thế Anh', 'Minh Quân',
+  'Phương Thảo', 'Gia Huy', 'Thanh Trúc', 'Hoàng Bách', 'Khánh Linh',
+  'Đức Phúc', 'Cẩm Tú', 'Tuấn Kiệt', 'Bảo Ngọc', 'Quốc Bảo',
+  'Diệu Huyền', 'Trọng Hiếu', 'Yến Nhi', 'Minh Triết', 'Kim Ngân'
 ];
 
 const COLOR_PALETTE = [
@@ -51,23 +59,57 @@ export const App: React.FC = () => {
   const [showAuthorModal, setShowAuthorModal] = useState<boolean>(false);
   const [targetStudentForQuiz, setTargetStudentForQuiz] = useState<Marble | null>(null);
 
-  // 3. Dữ liệu học sinh & câu hỏi (tự động gán ngẫu nhiên kho 55 avatar)
-  const [students, setStudents] = useState<Student[]>(() => {
+  // 3. Quản lý ĐA LỚP HỌC (Classrooms)
+  const [classrooms, setClassrooms] = useState<Classroom[]>(() => {
     try {
-      const saved = localStorage.getItem(STORAGE_STUDENTS);
+      const saved = localStorage.getItem(STORAGE_CLASSROOMS);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch {}
-    const initialList: Student[] = DEFAULT_NAMES.map((name, idx) => ({
-      id: `std_${idx}`,
+
+    // Tạo sẵn 2 lớp mẫu khởi đầu
+    const rawClass1: Student[] = DEFAULT_NAMES_12A1.map((name, idx) => ({
+      id: `c1_std_${idx}`,
       name,
       number: idx + 1,
       color: COLOR_PALETTE[idx % COLOR_PALETTE.length]
     }));
-    return assignRandomAvatarsToStudents(initialList);
+
+    const rawClass2: Student[] = DEFAULT_NAMES_11B2.map((name, idx) => ({
+      id: `c2_std_${idx}`,
+      name,
+      number: idx + 1,
+      color: COLOR_PALETTE[idx % COLOR_PALETTE.length]
+    }));
+
+    const class1Students = assignRandomAvatarsToStudents(rawClass1);
+    const class2Students = assignRandomAvatarsToStudents(rawClass2);
+
+    return [
+      { id: 'class_12a1', name: 'Lớp 12A1', students: class1Students },
+      { id: 'class_11b2', name: 'Lớp 11B2', students: class2Students }
+    ];
   });
+
+  // ID Lớp đang được chọn để thi đua
+  const [activeClassroomId, setActiveClassroomId] = useState<string>(() => {
+    try {
+      const savedId = localStorage.getItem(STORAGE_ACTIVE_CLASS_ID);
+      if (savedId) return savedId;
+    } catch {}
+    return 'class_12a1';
+  });
+
+  // Lớp hiện tại và danh sách học sinh đang đua
+  const activeClassroom = classrooms.find(c => c.id === activeClassroomId) || classrooms[0] || {
+    id: 'default',
+    name: 'Lớp Học',
+    students: []
+  };
+
+  const students = activeClassroom.students || [];
 
   const [questions, setQuestions] = useState<QuizQuestion[]>(() => {
     try {
@@ -104,7 +146,6 @@ export const App: React.FC = () => {
     targetRankCount: 3
   });
 
-  const [marbles, setMarbles] = useState<Marble[]>([]);
   const marblesRef = useRef<Marble[]>([]);
   const nextRankRef = useRef<number>(1);
   const animationFrameRef = useRef<number | null>(null);
@@ -151,18 +192,94 @@ export const App: React.FC = () => {
     nextRankRef.current = 1;
   }, []);
 
+  const [marbles, setMarbles] = useState<Marble[]>([]);
+
   // Cập nhật khi đổi danh sách học sinh, đường đua hoặc chế độ chơi
   useEffect(() => {
     initMarbles(students, currentTrack, gameMode);
   }, [students, currentTrack, gameMode, initMarbles]);
 
-  // Lưu danh sách học sinh vào localStorage
-  const handleSaveStudents = (newStudents: Student[]) => {
-    setStudents(newStudents);
+  // CHUYỂN LỚP HỌC
+  const handleSelectClassroom = (classId: string) => {
+    setActiveClassroomId(classId);
     try {
-      localStorage.setItem(STORAGE_STUDENTS, JSON.stringify(newStudents));
+      localStorage.setItem(STORAGE_ACTIVE_CLASS_ID, classId);
     } catch {}
-    initMarbles(newStudents, currentTrack, gameMode);
+
+    const target = classrooms.find(c => c.id === classId);
+    if (target) {
+      initMarbles(target.students || [], currentTrack, gameMode);
+      setRaceState(prev => ({
+        ...prev,
+        status: 'ready',
+        countdown: 3,
+        rankedWinners: []
+      }));
+    }
+  };
+
+  // TẠO LỚP HỌC MỚI
+  const handleCreateClassroom = (name: string) => {
+    const newClassId = `class_${Date.now()}`;
+    const newClass: Classroom = {
+      id: newClassId,
+      name,
+      students: []
+    };
+    const updated = [...classrooms, newClass];
+    setClassrooms(updated);
+    setActiveClassroomId(newClassId);
+    try {
+      localStorage.setItem(STORAGE_CLASSROOMS, JSON.stringify(updated));
+      localStorage.setItem(STORAGE_ACTIVE_CLASS_ID, newClassId);
+    } catch {}
+    initMarbles([], currentTrack, gameMode);
+  };
+
+  // ĐỔI TÊN LỚP
+  const handleRenameClassroom = (classId: string, newName: string) => {
+    const updated = classrooms.map(c => c.id === classId ? { ...c, name: newName } : c);
+    setClassrooms(updated);
+    try {
+      localStorage.setItem(STORAGE_CLASSROOMS, JSON.stringify(updated));
+    } catch {}
+  };
+
+  // XÓA LỚP
+  const handleDeleteClassroom = (classId: string) => {
+    const updated = classrooms.filter(c => c.id !== classId);
+    setClassrooms(updated);
+    try {
+      localStorage.setItem(STORAGE_CLASSROOMS, JSON.stringify(updated));
+    } catch {}
+
+    if (activeClassroomId === classId && updated.length > 0) {
+      const nextId = updated[0].id;
+      setActiveClassroomId(nextId);
+      try {
+        localStorage.setItem(STORAGE_ACTIVE_CLASS_ID, nextId);
+      } catch {}
+      initMarbles(updated[0].students || [], currentTrack, gameMode);
+    }
+  };
+
+  // LƯU HỌC SINH CHO 1 LỚP CỤ THỂ
+  const handleSaveStudentsOfClass = (classId: string, newStudents: Student[]) => {
+    const updated = classrooms.map(c => c.id === classId ? { ...c, students: newStudents } : c);
+    setClassrooms(updated);
+    try {
+      localStorage.setItem(STORAGE_CLASSROOMS, JSON.stringify(updated));
+    } catch {}
+
+    if (classId === activeClassroomId) {
+      initMarbles(newStudents, currentTrack, gameMode);
+      setRaceState(prev => ({
+        ...prev,
+        status: 'ready',
+        countdown: 3,
+        rankedWinners: []
+      }));
+    }
   };
 
   // Lưu ngân hàng câu hỏi vào localStorage
@@ -351,6 +468,9 @@ export const App: React.FC = () => {
           setGameMode(mode);
           handleResetRace();
         }}
+        classrooms={classrooms}
+        activeClassroomId={activeClassroomId}
+        onSelectClassroom={handleSelectClassroom}
         onOpenStudents={() => setShowStudentsModal(true)}
         onOpenQuizBank={() => setShowQuizBankModal(true)}
         onOpenTrackSelect={() => setShowTrackModal(true)}
@@ -431,8 +551,13 @@ export const App: React.FC = () => {
       {/* Modals */}
       {showStudentsModal && (
         <StudentManagerModal
-          students={students}
-          onSaveStudents={handleSaveStudents}
+          classrooms={classrooms}
+          activeClassroomId={activeClassroomId}
+          onSelectClassroom={handleSelectClassroom}
+          onCreateClassroom={handleCreateClassroom}
+          onRenameClassroom={handleRenameClassroom}
+          onDeleteClassroom={handleDeleteClassroom}
+          onSaveStudentsOfClass={handleSaveStudentsOfClass}
           onClose={() => setShowStudentsModal(false)}
         />
       )}

@@ -8,6 +8,12 @@ export interface Student {
   color: string;
 }
 
+export interface Classroom {
+  id: string;
+  name: string;
+  students: Student[];
+}
+
 export interface Marble {
   id: string;
   studentId: string;
