@@ -1,23 +1,32 @@
 import React, { useRef, useEffect, useState } from 'react';
-import { Marble, TrackConfig, GameMode } from '../types/marble';
+import { Marble, TrackConfig, GameMode, RaceState } from '../types/marble';
+import { Eye, Flag, ArrowUp } from 'lucide-react';
 
 interface MarbleCanvasProps {
   marbles: Marble[];
   track: TrackConfig;
   gameMode: GameMode;
-  onCanvasClick?: (x: number, y: number) => void;
   winnerCount: number;
+  raceStatus?: RaceState['status'];
 }
 
 export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
   marbles,
   track,
   gameMode,
-  winnerCount
+  winnerCount,
+  raceStatus = 'ready'
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [cameraY, setCameraY] = useState(0);
+
+  // Vị trí camera lưu trong useRef để không bị reset khi component re-render
+  const cameraYRef = useRef<number>(0);
+  const marblesRef = useRef<Marble[]>(marbles);
+  marblesRef.current = marbles;
+
+  // Chế độ camera: 'auto' (bám bi dẫn đầu), 'top' (vạch xuất phát), 'finish' (vạch đích)
+  const [cameraMode, setCameraMode] = useState<'auto' | 'top' | 'finish'>('auto');
 
   // Cache ảnh đại diện để tránh lag khi render 60fps
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -38,6 +47,15 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
     });
   }, [marbles]);
 
+  // Khi bắt đầu hoặc đặt lại cuộc đua, đưa camera về vạch xuất phát
+  useEffect(() => {
+    if (raceStatus === 'ready' || raceStatus === 'countdown') {
+      cameraYRef.current = 0;
+      setCameraMode('auto');
+    }
+  }, [raceStatus]);
+
+  // Vòng lặp Render 60fps liên tục, tính toán camera theo thời gian thực
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -45,62 +63,100 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
     if (!ctx) return;
 
     let animationId: number;
-    let currentCamY = 0;
 
     const render = () => {
-      // 1. Tính toán vị trí camera bám theo nhóm dẫn đầu
-      const activeMarbles = marbles.filter(m => !m.finished);
-      let targetY = 0;
+      const currentMarbles = marblesRef.current;
+      const canvasH = canvas.height;
+      const trackH = track.height;
+      const maxCamY = Math.max(0, trackH - canvasH + 20);
 
-      if (activeMarbles.length > 0) {
-        // Tìm vị trí của viên bi đang dẫn đầu (Y lớn nhất)
-        const leadingY = Math.max(...activeMarbles.map(m => m.y));
-        // Đặt camera để viên bi dẫn đầu nằm ở khoảng 40% màn hình
-        targetY = leadingY - canvas.height * 0.4;
-      } else if (marbles.length > 0) {
-        // Nếu tất cả đã về đích, đưa camera về vạch đích
-        targetY = track.finishY - canvas.height * 0.6;
+      // ==========================================
+      // 1. TÍNH TOÁN VỊ TRÍ CAMERA BÁM THEO BI
+      // ==========================================
+      let targetCamY = 0;
+
+      if (cameraMode === 'top') {
+        targetCamY = 0;
+      } else if (cameraMode === 'finish') {
+        targetCamY = Math.max(0, track.finishY - canvasH * 0.6);
+      } else {
+        // Chế độ 'auto': bám theo viên bi dẫn đầu
+        const activeMarbles = currentMarbles.filter(m => !m.finished);
+        const finishedMarbles = currentMarbles.filter(m => m.finished);
+
+        if (activeMarbles.length > 0) {
+          // Lấy vị trí Y lớn nhất trong các bi còn đang lăn
+          const leadingY = Math.max(...activeMarbles.map(m => m.y));
+          // Giữ viên bi dẫn đầu ở khoảng 38% - 42% chiều cao canvas
+          targetCamY = leadingY - canvasH * 0.4;
+        } else if (finishedMarbles.length > 0) {
+          // Khi tất cả đã về đích, chuyển camera nhẹ nhàng về vạch đích
+          targetCamY = track.finishY - canvasH * 0.55;
+        } else {
+          targetCamY = 0;
+        }
       }
 
-      // Giới hạn camera trong đường đua
-      const maxCamY = Math.max(0, track.height - canvas.height);
-      targetY = Math.max(0, Math.min(maxCamY, targetY));
+      // Giới hạn camera trong phạm vi đường đua
+      targetCamY = Math.max(0, Math.min(maxCamY, targetCamY));
 
-      // Di chuyển camera mượt mà (Lerp)
-      currentCamY += (targetY - currentCamY) * 0.08;
-      setCameraY(currentCamY);
+      // Di chuyển camera mượt mà (Lerp) không bị khựng
+      const lerpSpeed = 0.1;
+      cameraYRef.current += (targetCamY - cameraYRef.current) * lerpSpeed;
+      const currentCamY = cameraYRef.current;
 
-      // Reset màn hình
+      // Xóa toàn màn hình
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       ctx.save();
-      // Áp dụng offset camera
+      // Áp dụng biến đổi camera theo trục Y
       ctx.translate(0, -currentCamY);
 
       // ==========================================
       // A. VẼ NỀN ĐƯỜNG ĐUA & LƯỚI TỌA ĐỘ
       // ==========================================
-      const bgGrad = ctx.createLinearGradient(0, 0, 0, track.height);
+      const bgGrad = ctx.createLinearGradient(0, 0, 0, trackH);
       bgGrad.addColorStop(0, '#090d16');
-      bgGrad.addColorStop(0.5, '#0f172a');
-      bgGrad.addColorStop(1, '#0b0f19');
+      bgGrad.addColorStop(0.3, '#0f172a');
+      bgGrad.addColorStop(0.7, '#111827');
+      bgGrad.addColorStop(1, '#090d16');
       ctx.fillStyle = bgGrad;
-      ctx.fillRect(0, 0, track.width, track.height);
+      ctx.fillRect(0, 0, track.width, trackH);
 
       // Đường kẻ lưới neon trang trí
-      ctx.strokeStyle = 'rgba(99, 102, 241, 0.06)';
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.05)';
       ctx.lineWidth = 1;
       for (let x = 0; x < track.width; x += 50) {
         ctx.beginPath();
         ctx.moveTo(x, 0);
-        ctx.lineTo(x, track.height);
+        ctx.lineTo(x, trackH);
         ctx.stroke();
       }
-      for (let y = 0; y < track.height; y += 50) {
+      for (let y = 0; y < trackH; y += 50) {
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(track.width, y);
         ctx.stroke();
+      }
+
+      // Các mốc khoảng cách dọc đường đua (25%, 50%, 75%)
+      const markers = [
+        { y: 450, text: '🏁 25% ĐƯỜNG ĐUA' },
+        { y: 900, text: '⚡ 50% NỬA CHẶNG ĐƯỜNG' },
+        { y: 1350, text: '🔥 75% TĂNG TỐC VỀ ĐÍCH' }
+      ];
+      ctx.font = 'bold 11px "JetBrains Mono", sans-serif';
+      ctx.textAlign = 'right';
+      for (const marker of markers) {
+        ctx.fillStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.fillText(marker.text, track.width - 25, marker.y);
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.1)';
+        ctx.setLineDash([4, 6]);
+        ctx.beginPath();
+        ctx.moveTo(30, marker.y);
+        ctx.lineTo(track.width - 30, marker.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
       }
 
       // Viền tường 2 bên đường đua
@@ -108,18 +164,18 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
       leftWallGrad.addColorStop(0, '#6366F1');
       leftWallGrad.addColorStop(1, 'transparent');
       ctx.fillStyle = leftWallGrad;
-      ctx.fillRect(0, 0, 16, track.height);
+      ctx.fillRect(0, 0, 16, trackH);
 
       const rightWallGrad = ctx.createLinearGradient(track.width, 0, track.width - 16, 0);
       rightWallGrad.addColorStop(0, '#6366F1');
       rightWallGrad.addColorStop(1, 'transparent');
       ctx.fillStyle = rightWallGrad;
-      ctx.fillRect(track.width - 16, 0, 16, track.height);
+      ctx.fillRect(track.width - 16, 0, 16, trackH);
 
       // ==========================================
       // B. VẼ VẠCH XUẤT PHÁT & VẠCH ĐÍCH
       // ==========================================
-      // Vạch xuất phát (Start Gate)
+      // Vạch xuất phát
       ctx.strokeStyle = '#38BDF8';
       ctx.lineWidth = 4;
       ctx.setLineDash([12, 8]);
@@ -162,13 +218,11 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
           // Chốt tròn Plinko
           const r = obs.radius || 10;
           ctx.save();
-          // Vòng sáng ngoài
           ctx.beginPath();
           ctx.arc(obs.x, obs.y, r + 4, 0, Math.PI * 2);
           ctx.fillStyle = 'rgba(56, 189, 248, 0.15)';
           ctx.fill();
 
-          // Thân chốt
           const pegGrad = ctx.createRadialGradient(obs.x - 3, obs.y - 3, 2, obs.x, obs.y, r);
           pegGrad.addColorStop(0, '#FFFFFF');
           pegGrad.addColorStop(0.5, obs.color || '#38BDF8');
@@ -189,11 +243,9 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
           ctx.translate(obs.x, obs.y);
           ctx.rotate(a);
 
-          // Đổ bóng máng
           ctx.fillStyle = 'rgba(0,0,0,0.4)';
           ctx.fillRect(-w / 2, 4, w, 12);
 
-          // Thân máng
           const rampGrad = ctx.createLinearGradient(0, -6, 0, 6);
           rampGrad.addColorStop(0, '#FBBF24');
           rampGrad.addColorStop(0.5, obs.color || '#F59E0B');
@@ -232,7 +284,6 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
             ctx.restore();
           }
 
-          // Trục giữa
           ctx.beginPath();
           ctx.arc(0, 0, 10, 0, Math.PI * 2);
           ctx.fillStyle = '#FFFFFF';
@@ -261,14 +312,13 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
           ctx.lineWidth = 3;
           ctx.stroke();
 
-          // Icon lò xo
           ctx.fillStyle = '#FFFFFF';
           ctx.font = 'bold 12px sans-serif';
           ctx.textAlign = 'center';
           ctx.fillText('⚡', obs.x, obs.y + 4);
           ctx.restore();
         } else if (obs.type === 'booster') {
-          // Vùng tăng tốc (Chevron arrows)
+          // Vùng tăng tốc
           const bw = obs.width || 80;
           const bh = obs.height || 50;
           ctx.save();
@@ -280,7 +330,6 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
           ctx.lineWidth = 2;
           ctx.stroke();
 
-          // Vẽ mũi tên chỉ xuống
           ctx.fillStyle = '#A5B4FC';
           ctx.font = 'bold 18px sans-serif';
           ctx.textAlign = 'center';
@@ -292,7 +341,7 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
       // ==========================================
       // D. VẼ CÁC VIÊN BI & TÊN HỌC SINH
       // ==========================================
-      for (const m of marbles) {
+      for (const m of currentMarbles) {
         ctx.save();
 
         // 1. Vẽ vệt sáng (Trail)
@@ -314,13 +363,12 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
         const img = m.avatarUrl ? imageCacheRef.current.get(m.avatarUrl) : null;
 
         if (img && img.complete) {
-          // --- Chế độ ĐUA BẰNG ẢNH: Vẽ ảnh đại diện xoay theo bi ---
+          // Vẽ avatar xoay lăn theo bi
           ctx.beginPath();
           ctx.arc(0, 0, m.radius, 0, Math.PI * 2);
           ctx.clip();
           ctx.drawImage(img, -m.radius, -m.radius, m.radius * 2, m.radius * 2);
 
-          // Viền kim loại nổi
           ctx.restore();
           ctx.save();
           ctx.translate(m.x, m.y);
@@ -330,7 +378,7 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
           ctx.lineWidth = 3;
           ctx.stroke();
         } else {
-          // --- Chế độ ĐUA CHO VUI: Vẽ quả cầu bi ve 3D nổi bật ---
+          // Bi ve 3D nổi bật
           const sphereGrad = ctx.createRadialGradient(
             -m.radius * 0.35, -m.radius * 0.35, m.radius * 0.1,
             0, 0, m.radius
@@ -345,13 +393,11 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
           ctx.fillStyle = sphereGrad;
           ctx.fill();
 
-          // Vòng sáng highlight trên bề mặt
           ctx.beginPath();
           ctx.arc(-m.radius * 0.35, -m.radius * 0.35, m.radius * 0.3, 0, Math.PI * 2);
           ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
           ctx.fill();
 
-          // Số báo danh của bi
           ctx.fillStyle = '#FFFFFF';
           ctx.font = `bold ${Math.floor(m.radius * 0.8)}px "JetBrains Mono", sans-serif`;
           ctx.textAlign = 'center';
@@ -361,31 +407,28 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
 
         ctx.restore();
 
-        // 3. Vẽ nhãn tên học sinh tiếng Việt (Name Tag Pill)
+        // 3. Nhãn tên học sinh tiếng Việt
         const tagY = m.y - m.radius - 14;
         ctx.font = 'bold 11px "Be Vietnam Pro", sans-serif';
         const textWidth = ctx.measureText(m.name).width;
         const pillWidth = Math.max(textWidth + 14, 38);
         const pillHeight = 18;
 
-        // Nền pill nhãn tên
         ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
         ctx.beginPath();
         ctx.roundRect(m.x - pillWidth / 2, tagY - pillHeight / 2, pillWidth, pillHeight, 9);
         ctx.fill();
 
-        // Viền theo màu bi
         ctx.strokeStyle = m.color || '#6366F1';
         ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        // Chữ tên học sinh
         ctx.fillStyle = '#FFFFFF';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(m.name, m.x, tagY);
 
-        // Hiển thị huy hiệu thứ hạng nếu đã về đích
+        // Thứ hạng nếu đã về đích
         if (m.finished && m.rank) {
           const rankBadge = m.rank === 1 ? '🥇 1' : m.rank === 2 ? '🥈 2' : m.rank === 3 ? '🥉 3' : `#${m.rank}`;
           ctx.fillStyle = m.rank === 1 ? '#F59E0B' : m.rank === 2 ? '#94A3B8' : m.rank === 3 ? '#B45309' : '#6366F1';
@@ -400,6 +443,54 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
         ctx.restore();
       }
 
+      ctx.restore(); // Khôi phục translate camera
+
+      // ==========================================
+      // E. VẼ THANH TIẾN ĐỘ THU NHỎ (MINI-MAP) Ở GÓC TRÁI
+      // ==========================================
+      const mapX = 18;
+      const mapY = 18;
+      const mapW = 20;
+      const mapH = canvasH - 36;
+      const scaleY = mapH / trackH;
+
+      ctx.save();
+      // Nền Mini-map
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+      ctx.beginPath();
+      ctx.roundRect(mapX, mapY, mapW, mapH, 10);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+
+      // Vạch xuất phát trên mini-map
+      ctx.fillStyle = '#38BDF8';
+      ctx.fillRect(mapX + 2, mapY + 6, mapW - 4, 3);
+
+      // Vạch đích trên mini-map
+      const mapFinishY = mapY + track.finishY * scaleY;
+      ctx.fillStyle = '#EF4444';
+      ctx.fillRect(mapX + 2, mapFinishY, mapW - 4, 3);
+
+      // Vẽ vị trí các viên bi trên mini-map
+      for (const m of currentMarbles) {
+        const dotY = mapY + m.y * scaleY;
+        ctx.beginPath();
+        ctx.arc(mapX + mapW / 2, Math.min(mapY + mapH - 5, Math.max(mapY + 5, dotY)), 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = m.color || '#38BDF8';
+        ctx.fill();
+      }
+
+      // Khung chữ nhật hiển thị tầm nhìn Camera hiện tại trên mini-map
+      const viewY = mapY + currentCamY * scaleY;
+      const viewH = canvasH * scaleY;
+      ctx.strokeStyle = '#F59E0B';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(mapX - 2, viewY, mapW + 4, viewH, 4);
+      ctx.stroke();
+
       ctx.restore();
 
       animationId = requestAnimationFrame(render);
@@ -407,7 +498,7 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
 
     animationId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(animationId);
-  }, [marbles, track, gameMode]);
+  }, [track, gameMode, cameraMode]);
 
   // Sắp xếp danh sách top đang dẫn đầu thời gian thực
   const sortedMarbles = [...marbles].sort((a, b) => {
@@ -418,49 +509,97 @@ export const MarbleCanvas: React.FC<MarbleCanvasProps> = ({
   });
 
   return (
-    <div ref={containerRef} className="relative w-full flex justify-center bg-slate-950 overflow-hidden select-none">
-      {/* Canvas chính */}
-      <canvas
-        ref={canvasRef}
-        width={track.width}
-        height={760}
-        className="block bg-slate-950 max-w-full shadow-2xl rounded-2xl border border-slate-800"
-      />
-
-      {/* Bảng xếp hạng dẫn đầu Real-time (Góc trên bên phải) */}
-      <div className="absolute top-3 right-3 md:top-5 md:right-5 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 shadow-xl max-w-[200px] w-full hidden sm:block">
-        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
-          <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
-            <span>⚡</span> Top Dẫn Đầu
-          </span>
-          <span className="text-[10px] text-indigo-400 font-semibold">
-            Top {winnerCount}
-          </span>
+    <div ref={containerRef} className="relative w-full flex flex-col items-center select-none">
+      {/* Thanh điều khiển góc nhìn Camera */}
+      <div className="w-full flex items-center justify-between px-3 py-1.5 mb-2 bg-slate-900/80 backdrop-blur-md rounded-xl border border-slate-800 text-xs">
+        <div className="flex items-center gap-1.5 text-slate-300 font-semibold">
+          <Eye className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Góc nhìn Camera:</span>
         </div>
 
-        <div className="space-y-1">
-          {sortedMarbles.slice(0, 5).map((m, idx) => (
-            <div
-              key={m.id}
-              className={`flex items-center justify-between px-2 py-1 rounded text-xs transition-colors ${
-                m.finished
-                  ? 'bg-emerald-950/60 text-emerald-200 border border-emerald-500/30 font-bold'
-                  : idx === 0
-                  ? 'bg-amber-950/40 text-amber-200 border border-amber-500/20'
-                  : 'bg-slate-800/40 text-slate-300'
-              }`}
-            >
-              <div className="flex items-center gap-1.5 truncate">
-                <span className="font-extrabold text-[11px] w-4 text-center">
-                  {m.finished && m.rank ? (m.rank === 1 ? '🥇' : m.rank === 2 ? '🥈' : m.rank === 3 ? '🥉' : `#${m.rank}`) : `#${idx + 1}`}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setCameraMode('auto')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold transition-all ${
+              cameraMode === 'auto'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+            <span>Tự Động Bám Đuôi</span>
+          </button>
+
+          <button
+            onClick={() => setCameraMode('top')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold transition-all ${
+              cameraMode === 'top'
+                ? 'bg-sky-600 text-white shadow-sm'
+                : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <ArrowUp className="w-3 h-3" />
+            <span>Vạch Xuất Phát</span>
+          </button>
+
+          <button
+            onClick={() => setCameraMode('finish')}
+            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg font-bold transition-all ${
+              cameraMode === 'finish'
+                ? 'bg-amber-600 text-white shadow-sm'
+                : 'bg-slate-800/80 text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Flag className="w-3 h-3" />
+            <span>Vạch Đích</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Canvas chính */}
+      <div className="relative w-full flex justify-center bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 shadow-2xl">
+        <canvas
+          ref={canvasRef}
+          width={track.width}
+          height={760}
+          className="block bg-slate-950 max-w-full"
+        />
+
+        {/* Bảng xếp hạng dẫn đầu Real-time (Góc trên bên phải) */}
+        <div className="absolute top-3 right-3 md:top-4 md:right-4 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl p-2.5 shadow-xl max-w-[190px] w-full hidden sm:block">
+          <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-slate-800">
+            <span className="text-xs font-bold text-slate-300 flex items-center gap-1">
+              <span>⚡</span> Top Dẫn Đầu
+            </span>
+            <span className="text-[10px] text-indigo-400 font-semibold">
+              Top {winnerCount}
+            </span>
+          </div>
+
+          <div className="space-y-1">
+            {sortedMarbles.slice(0, 5).map((m, idx) => (
+              <div
+                key={m.id}
+                className={`flex items-center justify-between px-2 py-1 rounded text-xs transition-colors ${
+                  m.finished
+                    ? 'bg-emerald-950/60 text-emerald-200 border border-emerald-500/30 font-bold'
+                    : idx === 0
+                    ? 'bg-amber-950/40 text-amber-200 border border-amber-500/20'
+                    : 'bg-slate-800/40 text-slate-300'
+                }`}
+              >
+                <div className="flex items-center gap-1.5 truncate">
+                  <span className="font-extrabold text-[11px] w-4 text-center">
+                    {m.finished && m.rank ? (m.rank === 1 ? '🥇' : m.rank === 2 ? '🥈' : m.rank === 3 ? '🥉' : `#${m.rank}`) : `#${idx + 1}`}
+                  </span>
+                  <span className="truncate max-w-[85px]">{m.name}</span>
+                </div>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {m.finished ? 'ĐÍCH' : `${Math.floor((m.y / track.finishY) * 100)}%`}
                 </span>
-                <span className="truncate max-w-[90px]">{m.name}</span>
               </div>
-              <span className="text-[10px] text-slate-400 font-mono">
-                {m.finished ? 'VỀ ĐÍCH' : `${Math.floor((m.y / track.finishY) * 100)}%`}
-              </span>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       </div>
     </div>
