@@ -15,6 +15,9 @@ import { QuizBankModal } from './components/QuizBankModal';
 import { VisitCounter } from './components/VisitCounter';
 import { assignRandomAvatarsToStudents } from './utils/avatars';
 import { AuthorModal } from './components/AuthorModal';
+import { LoginScreen } from './components/LoginScreen';
+import { checkIsAuthenticated, logoutTeacher, getLoggedInTeacherName } from './utils/auth';
+import { LogOut } from 'lucide-react';
 
 const STORAGE_CLASSROOMS = 'duabi_classroom_classes_v4';
 const STORAGE_ACTIVE_CLASS_ID = 'duabi_classroom_active_class_id_v4';
@@ -43,6 +46,22 @@ const COLOR_PALETTE = [
 ];
 
 export const App: React.FC = () => {
+  // 0. Xác thực đăng nhập giáo viên bảo mật
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => checkIsAuthenticated());
+  const [teacherName, setTeacherName] = useState<string>(() => getLoggedInTeacherName());
+
+  const handleLoginSuccess = (name: string) => {
+    setTeacherName(name);
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    if (window.confirm('Cô/Thầy có chắc chắn muốn đăng xuất khỏi ứng dụng không?')) {
+      logoutTeacher();
+      setIsAuthenticated(false);
+    }
+  };
+
   // 1. Chế độ chơi & Cài đặt
   const [gameMode, setGameMode] = useState<GameMode>('fun');
   const [currentTrack, setCurrentTrack] = useState<TrackConfig>(DEFAULT_TRACKS[0]);
@@ -436,6 +455,7 @@ export const App: React.FC = () => {
   // Lắng nghe phím tắt bàn phím
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isAuthenticated) return;
       // Tránh ăn phím khi đang gõ text input
       if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) return;
 
@@ -457,7 +477,12 @@ export const App: React.FC = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [raceState.status]);
+  }, [raceState.status, isAuthenticated]);
+
+  // Nếu chưa đăng nhập, hiển thị Màn hình Đăng nhập bảo mật
+  if (!isAuthenticated) {
+    return <LoginScreen onLoginSuccess={handleLoginSuccess} />;
+  }
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col justify-between text-slate-100">
@@ -479,6 +504,7 @@ export const App: React.FC = () => {
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
         currentTrackName={currentTrack.name}
+        onLogout={handleLogout}
       />
 
       {/* Khu vực đường đua chính */}
@@ -540,6 +566,15 @@ export const App: React.FC = () => {
             <span className="text-slate-600">•</span>
             <span className="text-slate-400">Trường THPT Hoàng Diệu</span>
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Chi tiết</span>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-rose-950/60 border border-slate-800 hover:border-rose-500/40 text-slate-400 hover:text-rose-300 text-xs transition-all shadow-sm active:scale-95"
+            title="Đăng xuất khỏi hệ thống"
+          >
+            <LogOut className="w-3.5 h-3.5" />
+            <span>Đăng xuất</span>
           </button>
         </div>
 

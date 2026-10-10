@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { GameMode, Classroom } from '../types/marble';
-import { Users, HelpCircle, Volume2, VolumeX, Maximize2, Sparkles, MapPin, School, ChevronDown, Plus } from 'lucide-react';
+import { Users, HelpCircle, Volume2, VolumeX, Maximize2, Sparkles, MapPin, School, ChevronDown, Plus, LogOut } from 'lucide-react';
 import { sound } from '../utils/audio';
 
 interface HeaderProps {
@@ -17,6 +17,7 @@ interface HeaderProps {
   isMuted: boolean;
   onToggleMute: () => void;
   currentTrackName: string;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -32,7 +33,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenAuthor,
   isMuted,
   onToggleMute,
-  currentTrackName
+  currentTrackName,
+  onLogout
 }) => {
   const [showClassDropdown, setShowClassDropdown] = useState(false);
   const activeClass = classrooms.find(c => c.id === activeClassroomId) || classrooms[0];
@@ -95,6 +97,15 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
             </button>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-lg bg-rose-950/50 hover:bg-rose-900 border border-rose-500/40 text-rose-300 hover:text-white transition-colors"
+                title="Đăng xuất"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
             <button
               onClick={toggleFullscreen}
               className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
@@ -263,6 +274,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             {isMuted ? <VolumeX className="w-4 h-4 text-red-400" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
           </button>
+
+          {/* Đăng xuất */}
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-rose-950/40 hover:bg-rose-900/60 border border-rose-500/40 text-rose-300 hover:text-white text-xs font-semibold transition-all shadow-sm active:scale-95"
+              title="Đăng xuất khỏi hệ thống"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline">Đăng Xuất</span>
+            </button>
+          )}
 
           {/* Toàn màn hình */}
           <button
