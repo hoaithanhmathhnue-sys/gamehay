@@ -10,6 +10,7 @@ interface HeaderProps {
   onOpenQuizBank: () => void;
   onOpenTrackSelect: () => void;
   onOpenGeminiAI: () => void;
+  onOpenAuthor: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
   currentTrackName: string;
@@ -22,6 +23,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenQuizBank,
   onOpenTrackSelect,
   onOpenGeminiAI,
+  onOpenAuthor,
   isMuted,
   onToggleMute,
   currentTrackName
@@ -58,6 +60,16 @@ export const Header: React.FC<HeaderProps> = ({
 
           {/* Quick controls on mobile */}
           <div className="flex items-center gap-1.5 md:hidden">
+            <button
+              onClick={onOpenAuthor}
+              className="p-1.5 rounded-lg bg-slate-800 text-indigo-300 hover:text-white flex items-center gap-1 text-xs border border-indigo-500/30"
+              title="Thông tin tác giả"
+            >
+              <div className="w-4 h-4 rounded-full overflow-hidden border border-indigo-300 shrink-0">
+                <img src="/avatar.jpg" alt="" className="w-full h-full object-cover" />
+              </div>
+              <span className="text-[11px] font-medium hidden sm:inline">Tác giả</span>
+            </button>
             <button
               onClick={onToggleMute}
               className="p-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white"
@@ -154,6 +166,18 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <Sparkles className="w-3.5 h-3.5 text-purple-400 animate-pulse" />
             <span>Tạo Bằng AI</span>
+          </button>
+
+          {/* Nút Tác giả của app */}
+          <button
+            onClick={onOpenAuthor}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-indigo-500/20 via-pink-500/10 to-amber-500/20 hover:from-indigo-500/30 hover:to-amber-500/30 border border-indigo-400/40 text-xs font-semibold text-indigo-200 transition-all shadow-sm hover:scale-105 active:scale-95"
+            title="Xem thông tin Giáo viên & Tác giả ứng dụng"
+          >
+            <div className="w-4 h-4 rounded-full overflow-hidden border border-indigo-300 shrink-0">
+              <img src="/avatar.jpg" alt="" className="w-full h-full object-cover" />
+            </div>
+            <span>Tác Giả</span>
           </button>
 
           {/* Âm thanh */}

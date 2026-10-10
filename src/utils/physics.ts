@@ -304,16 +304,45 @@ export const DEFAULT_TRACKS: TrackConfig[] = [
       { id: 'bouncer_left', type: 'bouncer', x: 80, y: 760, radius: 22, color: '#EC4899' },
       { id: 'bouncer_right', type: 'bouncer', x: 720, y: 900, radius: 22, color: '#EC4899' },
 
-      // Cánh quạt xoay ở giữa (y: 1180)
-      { id: 'spinner_1', type: 'spinner', x: 280, y: 1220, radius: 55, rotationSpeed: 0.04, color: '#10B981' },
-      { id: 'spinner_2', type: 'spinner', x: 520, y: 1220, radius: 55, rotationSpeed: -0.04, color: '#10B981' },
+      // Cánh quạt xoay ở giữa (y: 1220)
+      { id: 'spinner_1', type: 'spinner', x: 260, y: 1220, radius: 55, rotationSpeed: 0.045, color: '#10B981' },
+      { id: 'spinner_2', type: 'spinner', x: 540, y: 1220, radius: 55, rotationSpeed: -0.045, color: '#10B981' },
+      
+      // Đệm nảy Neon lò xo ở tâm giữa 2 cánh quạt và 2 bên sườn tường
+      { id: 'bouncer_mid_spinners', type: 'bouncer', x: 400, y: 1220, radius: 24, color: '#F43F5E' },
+      { id: 'bouncer_wall_left', type: 'bouncer', x: 60, y: 1220, radius: 24, color: '#EC4899' },
+      { id: 'bouncer_wall_right', type: 'bouncer', x: 740, y: 1220, radius: 24, color: '#EC4899' },
 
-      // Vùng gia tốc Booster dẫn vào cổng hẹp (y: 1350)
-      { id: 'booster_center', type: 'booster', x: 400, y: 1380, width: 140, height: 60, color: '#6366F1' },
+      // Cánh quạt mini xoay tốc độ cao ở trung tâm tầng dưới (y: 1320)
+      { id: 'spinner_center_fast', type: 'spinner', x: 400, y: 1325, radius: 46, rotationSpeed: 0.07, color: '#06B6D4' },
 
-      // Hàng cọc gom về phễu hẹp trước vạch đích (y: 1480 -> 1620)
+      // Bẫy máng nghiêng phân làn so le trái - phải (y: 1320)
+      { id: 'deflector_left', type: 'ramp', x: 190, y: 1325, width: 150, angle: 0.32, color: '#F59E0B' },
+      { id: 'deflector_right', type: 'ramp', x: 610, y: 1325, width: 150, angle: -0.32, color: '#F59E0B' },
+
+      // Hai đường hầm gia tốc Nitro đôi ở 2 bên làn (y: 1410)
+      { id: 'booster_left', type: 'booster', x: 180, y: 1415, width: 90, height: 50, color: '#6366F1' },
+      { id: 'booster_right', type: 'booster', x: 620, y: 1415, width: 90, height: 50, color: '#6366F1' },
+
+      // Ma trận 7 chốt đinh Plinko phát sáng hình kim cương ở trung tâm (y: 1390 -> 1470)
+      { id: 'peg_diamond_1', type: 'peg', x: 350, y: 1390, radius: 9, color: '#38BDF8', restitution: 0.8 },
+      { id: 'peg_diamond_2', type: 'peg', x: 450, y: 1390, radius: 9, color: '#38BDF8', restitution: 0.8 },
+      { id: 'peg_diamond_3', type: 'peg', x: 300, y: 1430, radius: 9, color: '#F472B6', restitution: 0.8 },
+      { id: 'peg_diamond_mid', type: 'peg', x: 400, y: 1430, radius: 11, color: '#F59E0B', restitution: 0.85 },
+      { id: 'peg_diamond_4', type: 'peg', x: 500, y: 1430, radius: 9, color: '#F472B6', restitution: 0.8 },
+      { id: 'peg_diamond_5', type: 'peg', x: 350, y: 1470, radius: 9, color: '#38BDF8', restitution: 0.8 },
+      { id: 'peg_diamond_6', type: 'peg', x: 450, y: 1470, radius: 9, color: '#38BDF8', restitution: 0.8 },
+
+      // Đệm nảy lò xo bảo vệ 2 đầu phễu gom bi (y: 1510)
+      { id: 'bouncer_funnel_l', type: 'bouncer', x: 100, y: 1500, radius: 22, color: '#10B981' },
+      { id: 'bouncer_funnel_r', type: 'bouncer', x: 700, y: 1500, radius: 22, color: '#10B981' },
+
+      // Hàng máng gom về phễu hẹp trước vạch đích (y: 1540)
       { id: 'funnel_left', type: 'ramp', x: 220, y: 1540, width: 300, angle: 0.5, color: '#8B5CF6' },
       { id: 'funnel_right', type: 'ramp', x: 580, y: 1540, width: 300, angle: -0.5, color: '#8B5CF6' },
+
+      // Chốt chẻ đôi dòng bi (Splitter Peg) ngay cổ chai phễu đích (y: 1610)
+      { id: 'splitter_peg', type: 'peg', x: 400, y: 1610, radius: 12, color: '#EF4444', restitution: 0.9 },
     ]
   },
   {

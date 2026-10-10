@@ -14,6 +14,7 @@ import { TrackSelectorModal } from './components/TrackSelectorModal';
 import { QuizBankModal } from './components/QuizBankModal';
 import { VisitCounter } from './components/VisitCounter';
 import { assignRandomAvatarsToStudents } from './utils/avatars';
+import { AuthorModal } from './components/AuthorModal';
 
 const STORAGE_STUDENTS = 'duabi_classroom_students_v2';
 const STORAGE_QUESTIONS = 'duabi_classroom_questions';
@@ -47,6 +48,7 @@ export const App: React.FC = () => {
   const [showGeminiModal, setShowGeminiModal] = useState<boolean>(false);
   const [showPodiumModal, setShowPodiumModal] = useState<boolean>(false);
   const [showQuizModal, setShowQuizModal] = useState<boolean>(false);
+  const [showAuthorModal, setShowAuthorModal] = useState<boolean>(false);
   const [targetStudentForQuiz, setTargetStudentForQuiz] = useState<Marble | null>(null);
 
   // 3. Dữ liệu học sinh & câu hỏi (tự động gán ngẫu nhiên kho 55 avatar)
@@ -353,6 +355,7 @@ export const App: React.FC = () => {
         onOpenQuizBank={() => setShowQuizBankModal(true)}
         onOpenTrackSelect={() => setShowTrackModal(true)}
         onOpenGeminiAI={() => setShowGeminiModal(true)}
+        onOpenAuthor={() => setShowAuthorModal(true)}
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
         currentTrackName={currentTrack.name}
@@ -399,9 +402,27 @@ export const App: React.FC = () => {
         </div>
       </main>
 
-      {/* Footer chứa VisitCounter theo visit.md */}
-      <footer className="w-full py-4 border-t border-slate-900 bg-slate-950/80 backdrop-blur-md flex flex-col items-center gap-2">
+      {/* Footer chứa VisitCounter theo visit.md & Thông tin Tác giả */}
+      <footer className="w-full py-4 border-t border-slate-900 bg-slate-950/80 backdrop-blur-md flex flex-col items-center gap-2.5 px-4 text-center">
         <VisitCounter />
+        
+        {/* Badge Tác giả trang trọng */}
+        <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
+          <button
+            onClick={() => setShowAuthorModal(true)}
+            className="group inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-indigo-500/50 text-slate-300 hover:text-white transition-all shadow-sm active:scale-95"
+            title="Nhấp để xem thông tin chi tiết tác giả ứng dụng"
+          >
+            <div className="w-5 h-5 rounded-full overflow-hidden border border-indigo-400 shrink-0">
+              <img src="/avatar.jpg" alt="" className="w-full h-full object-cover" />
+            </div>
+            <span>Tác giả: <strong className="text-indigo-300 font-bold group-hover:underline">Cô Trần Thị Kim Thoa</strong></span>
+            <span className="text-slate-600">•</span>
+            <span className="text-slate-400">Trường THPT Hoàng Diệu</span>
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">Chi tiết</span>
+          </button>
+        </div>
+
         <p className="text-[11px] text-slate-500 font-medium">
           Dành cho giáo viên sáng tạo & lớp học tích cực • Phím tắt: [Space] Bắt đầu/Tạm dừng • [B] Tăng tốc Nitro • [R] Đặt lại
         </p>
@@ -465,6 +486,11 @@ export const App: React.FC = () => {
           onNextQuestion={handleNextQuizQuestion}
           currentScore={quizScore}
         />
+      )}
+
+      {/* Modal Tác giả ứng dụng */}
+      {showAuthorModal && (
+        <AuthorModal onClose={() => setShowAuthorModal(false)} />
       )}
     </div>
   );
